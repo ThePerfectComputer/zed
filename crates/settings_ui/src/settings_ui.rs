@@ -324,6 +324,7 @@ fn render_nav(tree: &SettingsUiTree, _window: &mut Window, cx: &mut Context<Sett
                 }))
                 .child(
                     Label::new(SharedString::new_static(tree.entries[index].title))
+                        .truncate()
                         .size(LabelSize::Large)
                         .when(tree.active_entry_index == index, |this| {
                             this.color(Color::Selected)
@@ -405,17 +406,21 @@ impl Render for SettingsPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .grid()
-            .grid_cols(16)
-            .p_4()
+            .grid_cols(3)
+            .mx_auto()
+            .p_16()
+            .max_w(px(700.))
+            .min_w(px(500.))
             .bg(cx.theme().colors().editor_background)
             .size_full()
             .child(
                 div()
-                    .col_span(2)
+                    .overflow_hidden()
+                    .col_span(1)
                     .h_full()
                     .child(render_nav(&self.settings_tree, window, cx)),
             )
-            .child(div().col_span(4).h_full().child(render_content(
+            .child(div().col_span(2).h_full().child(render_content(
                 &self.settings_tree,
                 window,
                 cx,
