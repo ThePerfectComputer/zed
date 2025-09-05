@@ -13,7 +13,10 @@ use settings::{
     SettingsUiItemGroup, SettingsUiItemSingle, SettingsValue,
 };
 use smallvec::SmallVec;
-use ui::{NumericStepper, SwitchField, ToggleButtonGroup, ToggleButtonSimple, prelude::*};
+use ui::{
+    ContextMenu, DropdownMenu, NumericStepper, SwitchField, ToggleButtonGroup, ToggleButtonSimple,
+    prelude::*,
+};
 use workspace::{
     Workspace,
     item::{Item, ItemEvent},
@@ -697,68 +700,40 @@ fn render_toggle_button_group(
     value: SettingsValue<serde_json::Value>,
     variants: &'static [&'static str],
     labels: &'static [&'static str],
-    _: &mut Window,
-    _: &mut App,
+    window: &mut Window,
+    cx: &mut App,
 ) -> AnyElement {
     let value = downcast_any_item::<String>(value);
 
-    fn make_toggle_group<const LEN: usize>(
-        group_name: &'static str,
-        value: SettingsValue<String>,
-        variants: &'static [&'static str],
-        labels: &'static [&'static str],
-    ) -> AnyElement {
-        let mut variants_array: [(&'static str, &'static str); LEN] = [("unused", "unused"); LEN];
-        for i in 0..LEN {
-            variants_array[i] = (variants[i], labels[i]);
-        }
-        let active_value = value.read();
+    // Find the current label to display in the dropdown (fall back to first if none match)
+    let current_label = variants
+        .iter()
+        .zip(labels.iter())
+        .find_map(|(v, l)| if v == &active_value { Some(*l) } else { None })
+        .unwrap_or_else(|| labels.first().copied().unwrap_or(""));
 
-        let selected_idx = variants_array
-            .iter()
-            .enumerate()
-            .find_map(|(idx, (variant, _))| {
-                if variant == &active_value {
-                    Some(idx)
-                } else {
-                    None
-                }
-            });
+    let path = value.path.clone();
 
-        let mut idx = 0;
-        ToggleButtonGroup::single_row(
-            group_name,
-            variants_array.map(|(variant, label)| {
+    DropdownMenu::new(
+        element_id_from_path(&path),
+        current_label,
+        ContextMenu::build(window, cx, |mut menu, _, cx| {
+            for (variant, label) in variants.iter().zip(labels.iter()) {
                 let path = value.path.clone();
-                idx += 1;
-                ToggleButtonSimple::new(label, move |_, _, cx| {
-                    SettingsValue::write_value(
-                        &path,
-                        serde_json::Value::String(variant.to_string()),
-                        cx,
-                    );
-                })
-            }),
-        )
-        .when_some(selected_idx, |this, ix| this.selected_index(ix))
-        .style(ui::ToggleButtonGroupStyle::Filled)
-        .into_any_element()
-    }
-
-    macro_rules! templ_toggl_with_const_param {
-        ($len:expr) => {
-            if variants.len() == $len {
-                return make_toggle_group::<$len>(value.title, value, variants, labels);
+                let variant = *variant;
+                let label = *label;
+                menu = menu.custom_entry(
+                    move |_, _| Label::new(label).into_any_element(),
+                    move |_, cx| {
+                        let new_value = serde_json::Value::String(variant.to_string());
+                        SettingsValue::write_value(&path, new_value, cx);
+                    },
+                );
             }
-        };
-    }
-    templ_toggl_with_const_param!(1);
-    templ_toggl_with_const_param!(2);
-    templ_toggl_with_const_param!(3);
-    templ_toggl_with_const_param!(4);
-    templ_toggl_with_const_param!(5);
-    templ_toggl_with_const_param!(6);
-    unreachable!("Too many variants");
+            menu
+        }),
+    )
+    .into_any_element()
 }
 
 fn settings_value_from_settings_and_path(
